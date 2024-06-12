@@ -1,7 +1,8 @@
 use super::*;
-use std::sync::{Arc, Mutex};
-use tokio::test;
 
+use may::net::TcpStream;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 struct Data {
     value1: usize,
@@ -9,7 +10,7 @@ struct Data {
 }
 
 #[test]
-async fn connections() {
+fn connections() {
     const N: usize = 11;
     const ADDR: &str = "127.0.0.1:11099";
     let db = Arc::new(Mutex::new(Data {
@@ -17,9 +18,7 @@ async fn connections() {
         value2: 0,
     }));
     for i in 0..N {
-        tokio::spawn(async { 
-            test_conn(i, ADDR).unwrap()
-        });
+        go!(move || test_conn(i, ADDR).unwrap());
     }
     let mut s = listen(ADDR, db.clone()).unwrap();
     s.command = Some(|conn, data, args| {

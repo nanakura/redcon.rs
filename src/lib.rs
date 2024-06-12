@@ -3,13 +3,15 @@ mod test;
 
 use std::any::Any;
 use std::collections::HashMap;
-use std::io;
+use std::{io, thread};
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Duration;
+use may::{go};
+use may::net::TcpListener;
+use may::net::TcpStream;
 
 /// A error type that is returned by the [`listen`] and [`Server::serve`]
 /// functions and passed to the [`Server::closed`] handler.
@@ -428,7 +430,7 @@ fn serve<T: Send + Sync + 'static>(s: &mut Server<T>) -> Result<(), Error> {
     let closed = s.closed.take();
     let tick = s.tick.take();
     let laddr = s.local_addr;
-    drop(s);
+    let _ = s;
 
     let wg = Arc::new(AtomicI64::new(0));
     let conns: HashMap<u64, Arc<AtomicBool>> = HashMap::new();
@@ -450,7 +452,7 @@ fn serve<T: Send + Sync + 'static>(s: &mut Server<T>) -> Result<(), Error> {
         let shutdown = shutdown.clone();
         let wg = wg.clone();
         wg.fetch_add(1, Ordering::SeqCst);
-        thread::spawn(move || {
+        go!(move || {
             while !shutdown.load(Ordering::SeqCst) {
                 match (tick)(&data) {
                     Some(delay) => thread::sleep(delay),
@@ -496,7 +498,7 @@ fn serve<T: Send + Sync + 'static>(s: &mut Server<T>) -> Result<(), Error> {
                 conns.lock().unwrap().insert(conn_id, xcloser.clone());
                 let wg = wg.clone();
                 wg.fetch_add(1, Ordering::SeqCst);
-                thread::spawn(move || {
+                go!(move || {
                     let mut conn = Conn {
                         id: conn_id,
                         cmds: Vec::new(),
